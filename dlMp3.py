@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from audioToVideo import convert_video_to_audio
+from yt_dlp import YoutubeDL
 import subprocess
 
 root = Path('./music/').absolute()
@@ -9,21 +9,40 @@ music_path = f"{str(root)}"
 
 processes = []
 
-with open('links.txt', 'r') as ytb_links:
-    directory = ''
-    for youtube_url in ytb_links:
-        if(not youtube_url.startswith('http')):
-            directory = '/'+youtube_url
-            if(youtube_url.startswith('.')):
-                directory = ''
-        else:
-            p = subprocess.Popen(['yt-dlp', '-f', "best[ext=mp4]", "-o", f"{music_path+directory}/%(title)s.%(ext)s", f"{youtube_url}"])
-            processes.append(p)
+ydl_opts = {
+    'format': 'mp3/bestaudio/best',
+    'postprocessors': [{
+        'key': 'FFmpegExtractAudio',
+        'preferredcodec': 'mp3',
+    }],
+    'outtmpl': {
+        'default': '%(title)s.%(ext)s'
+    }
+}
 
-for process in processes:
-    process.wait()
+paths = {'paths': {'home': music_path}}
+
+with open('links.txt', 'r') as ytb_links, YoutubeDL(ydl_opts) as ydl:
+    urls = []
+    for youtube_url in ytb_links:
+        if (not youtube_url.startswith('http')):
+            ydl.download(urls)
+            urls = []
+            if (youtube_url.startswith('.')):
+                paths['paths']['home'] = music_path
+            else:
+                paths['paths']['home'] = music_path + '/'+youtube_url
+            ydl.params = ydl.params | paths
+        else:
+            urls.append(youtube_url)
+    ydl.download(urls)
+
+
+# for process in processes:
+#    process.wait()
 
 videos = []
+
 
 def get_all_files(dir):
     for file in os.listdir(dir):
@@ -34,8 +53,5 @@ def get_all_files(dir):
         elif os.path.isdir(path):
             get_all_files(path)
 
-get_all_files(root)
 
-for video in videos:
-    convert_video_to_audio(str(video))
-    os.remove(video)
+get_all_files(root)
